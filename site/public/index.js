@@ -4,6 +4,8 @@ let queryExecutionStart = 0;
 let runningTimer = null;
 
 const $query = $('#query');
+const $table = $('#table');
+const $timezone = $('#timezone');
 const $runQueryButton = $('#runQuery');
 const $clearQueryButton = $('#clearQuery');
 const $debug = $('#debug');
@@ -39,6 +41,8 @@ const ajaxError = (err) => {
 };
 
 $query.val(window.localStorage.getItem('query') || '');
+$table.val(window.localStorage.getItem('table') || 'processed_logs');
+$timezone.val(window.localStorage.getItem('timezone') || 'ET');
 
 $clearQueryButton.on('click', () => {
   $query.val('').focus();
@@ -52,14 +56,20 @@ $runQueryButton.on('click', () => {
 
   if (queryRunning) {
     const query = $query.val().trim();
+    const table = $table.val();
+    const timezone = $timezone.val();
+
     window.localStorage.setItem('query', query);
+    window.localStorage.setItem('table', table);
+    window.localStorage.setItem('timezone', timezone);
+
     $download.hide();
     $clearQueryButton.hide();
     queryExecutionStart = Date.now();
     const queryParams = {
       type: 'POST',
       url: '/api/query',
-      data: JSON.stringify({query: query}),
+      data: JSON.stringify({query: query, table: table, timezone: timezone}),
       contentType:"application/json; charset=utf-8",
       dataType:"json"
     };
@@ -137,6 +147,9 @@ const pollQueryExecution = () => {
         const result = data.result && data.result.QueryExecution;
         if (!result) {
           debug('Invalid result from query execution poll!', true);
+        }
+        else if (result.Status && (result.Status.State === 'FAILED')) {
+          debug(result.Status.StateChangeReason, true);
         }
         else if (result.Status && (result.Status.State === 'SUCCEEDED')) {
           var stats = result.Statistics;

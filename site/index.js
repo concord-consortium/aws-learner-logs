@@ -9,6 +9,7 @@ const AWS = require('aws-sdk');
 const uuid = require('uuid');
 const session = require('express-session');
 const request = require('request');
+const moment = require('moment-timezone');
 
 app.set('view engine', 'pug');
 
@@ -135,22 +136,25 @@ app.get('/oauth-callback', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.render('index', {user: req.session.user});
+  res.render('index', {user: req.session.user, timezones: moment.tz.names()});
 });
 
 app.get('/logout', (req, res) => {
   req.session.destroy((err) => res.redirect('/'));
 });
 
-function ParsedTime(timeString) {
-  this.present = !isNaN(Date.parse(timeString));
+function ParsedTime(timeString, timezone) {
+  // parse the time string with the timezone and then set the timezone
+  moment.tz.setDefault(timezone);
+  this.moment = moment(timeString).tz(timezone);
+  this.date = this.moment.toDate();
+  this.present = this.moment.isValid();
   this.timePresent = timeString.trim().indexOf(' ') !== -1;
-  this.date = new Date(timeString);
 }
 const zeroPad = (n) => n < 10 ? "0" + n : "" + n;
 ParsedTime.prototype.where = function (operator) {
   const parts = [
-    `timestamp ${operator} ${Math.round(this.date.getTime() / 1000)}`,
+    `timestamp ${operator} ${this.moment.unix()}`,
     `year ${operator} '${this.date.getUTCFullYear()}'`,
     `month ${operator} '${zeroPad(this.date.getUTCMonth() + 1)}'`,
     `day ${operator} '${zeroPad(this.date.getUTCDate())}'`,
@@ -167,6 +171,8 @@ app.post('/api/query', (req, res) => {
     if (!json || !json.filter) {
       return res.error(400, 'Missing query filter section!');
     }
+    const table = req.body.table || 'processed_logs';
+    const timezone = req.body.timezone || 'America/New_York';
 
     const where = [];
     json.filter.forEach((filter) => {
@@ -182,8 +188,8 @@ app.post('/api/query', (req, res) => {
         }
       }
       else if (key === 'time') {
-        const startTime = new ParsedTime(filter.start_time);
-        const endTime = new ParsedTime(filter.end_time);
+        const startTime = new ParsedTime(filter.start_time, timezone);
+        const endTime = new ParsedTime(filter.end_time, timezone);
         if (startTime.present && !endTime.present) {
           where.push(startTime.where('>='));
         }
@@ -200,7 +206,7 @@ app.post('/api/query', (req, res) => {
       return res.error(400, 'Invalid query, no valid filters found!');
     }
 
-    const sql = `SELECT * FROM "log-manager-data"."processed_logs" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
+    const sql = `SELECT * FROM "log-manager-data"."${table}" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
     //return res.json({sql});
 
     const athena = new AWS.Athena(awsConfig);

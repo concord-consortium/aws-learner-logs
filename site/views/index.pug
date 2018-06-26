@@ -13,7 +13,29 @@ html
           a(href="/logout") Logout
     .content
       if user
-        textarea#query(cols="30", rows="10", placeholder="Paste JSON log manager query here...")
+        div.form-element
+          label Table
+            span This is selects which Athena table to query
+          select#table
+            option(value="processed_logs") All Logs
+            option(value="lara_log_poc") LARA Logs
+            option(value="codap") CODAP Logs
+        div.form-element
+          label Timezone
+            span This is used when interpreting time filters
+          select#timezone
+            optgroup(label="US Timezones")
+              option(value="America/New_York") US Eastern Time
+              option(value="America/Chicago") US Central Time
+              option(value="America/Denver") US Mountain Time
+              option(value="America/Los_Angeles") US Pacific Time
+            optgroup(label="All Timezones")
+              each timezone in timezones
+                option(value=timezone) #{timezone}
+        div.form-element
+          label JSON Query
+            span Same format as original Log Manager but everthing except filters are ignored
+          textarea#query(cols="30", rows="10", placeholder="Paste JSON log manager query here...")
         div.buttons
           button#runQuery.button Run Query
           button#clearQuery.button Clear Query
