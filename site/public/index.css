@@ -1,0 +1,70 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+h1 {
+  margin-bottom: 10px;
+}
+
+.header {
+  background-color: #0592AF;
+  color: #fff;
+  padding: 10px 20px;
+}
+.header a {
+  color: #fff;
+  text-decoration: none;
+  margin-left: 10px;
+}
+.header img {
+  margin-right: 3px;
+}
+
+.right {
+  float: right;
+}
+
+.content {
+  padding: 20px;
+}
+
+textarea {
+  width: 100%;
+  height: 400px;
+  margin-bottom: 20px;
+}
+
+#debug {
+  font-family: 'Courier New', Courier, monospace;
+  margin-top: 20px;
+}
+
+#download {
+  display: none;
+}
+#download a {
+  text-decoration: none;
+  color: #fff;
+}
+
+.button {
+  margin: 0;
+  padding: 10px 20px;
+  border: 1px solid #EA6D2F;
+  background-color: #EA6D2F;
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+}
+.buttons .button {
+  margin-right: 10px;
+}
+
+.login-required div {
+  margin-bottom: 20px;
+}

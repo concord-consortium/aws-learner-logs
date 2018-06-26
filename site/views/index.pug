@@ -1,0 +1,28 @@
+html
+  head
+    title Concord AWS Learner Logs
+    link(rel="stylesheet", href="index.css")
+    link(rel="shortcut icon", type="image/x-icon", href="/favicon.ico")
+  body
+    .header
+      img(src="logo.png", align="top")
+      strong Concord AWS Learner Logs
+      if user
+        .right
+          strong #{user.info.full_name}
+          a(href="/logout") Logout
+    .content
+      if user
+        textarea#query(cols="30", rows="10", placeholder="Paste JSON log manager query here...")
+        div.buttons
+          button#runQuery.button Run Query
+          button#clearQuery.button Clear Query
+          span#download.button
+        div#debug
+        script(src="jquery.min.js")
+        script(src="index.js")
+      else
+        .login-required
+          div To use this application you must be an admin on the Learn Portal.
+          div
+            a(href="/oauth-start").button Login at the portal
