@@ -217,7 +217,7 @@ app.post('/api/query', (req, res) => {
       },
       ClientRequestToken: uuid.v4(),
       QueryExecutionContext: {
-        Database: 'log-manager-data'
+        Database: 'log_manager_data'
       }
     };
     athena.startQueryExecution(queryParams, (err, data) => {
