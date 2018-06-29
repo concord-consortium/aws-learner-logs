@@ -206,7 +206,7 @@ app.post('/api/query', (req, res) => {
       return res.error(400, 'Invalid query, no valid filters found!');
     }
 
-    const sql = `SELECT * FROM "log-manager-data"."${table}" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
+    const sql = `SELECT * FROM "log_manager_data"."${table}" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
     //return res.json({sql});
 
     const athena = new AWS.Athena(awsConfig);
