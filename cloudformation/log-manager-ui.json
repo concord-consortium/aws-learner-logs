@@ -1,0 +1,311 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Log Manager UI stack",
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "Description": "Lowercase name of environment (eg 'production', 'staging', etc)",
+      "MinLength" : "1",
+      "AllowedPattern" : "^[a-z0-9]*$",
+      "ConstraintDescription": "Must be at least 1 lowercase letter or number (no spaces allowed)"
+    },
+    "SSLCertificateName": {
+      "Type": "String",
+      "AllowedValues": [
+        "star.concord.org",
+        "star.staging.concord.org"
+      ],
+      "Description": "Two certificates are registered with AWS choose which one to use for the load balancer"
+    },
+    "DomainName": {
+      "Type": "String",
+      "Description": "The DNS name that will be created or updated to point at the load balancer"
+    },
+    "ClusterStackName": {
+      "Type": "String",
+      "Description": "The name of the CloudFormation stack that manages the cluster you want this application deployed in."
+    },
+    "CloudWatchLogGroup": {
+      "Type": "String",
+      "Description": "logging group in cloud watch where the aws logs will be sent"
+    },
+    "MaxNumUIWebTasks": {
+      "Type": "String",
+      "Description": "maxium number of UI Web tasks the autoscaler will spin up"
+    },
+    "MinNumUIWebTasks": {
+      "Type": "String",
+      "Description": "minimum number of UI Web tasks the autoscaler will spin up"
+    },
+    "UIDockerImage": {
+      "Type": "String",
+      "Description": "docker image to use for the ui web container"
+    },
+    "LearnPortalClientId": {
+      "Type": "String",
+      "Description": "The client id to use to authenticate via learn."
+    },
+    "LearnPortalSecret": {
+      "Type": "String",
+      "Description": "The OAuth2 key to authenticate via learn."
+    },
+    "UISessionSecret": {
+      "Type": "String",
+      "Description": "session secret for ui"
+    },
+    "AWSAccessKeyId": {
+      "Type": "String",
+      "Description": "AWS access key id for ui"
+    },
+    "AWSSecretAccessKey": {
+      "Type": "String",
+      "Description": "AWS secret access key for ui"
+    }
+  },
+  "Resources": {
+    "AppLoadBalancerStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": "https://s3.amazonaws.com/concord-devops/cloud-formation/ecs-load-balancer.yml",
+        "Parameters": {
+          "LoadBalancerIdleTimeout": "180",
+          "DomainName": {"Ref": "DomainName"},
+          "ClusterSecurityGroupId": {
+            "Fn::ImportValue": {"Fn::Sub": "${ClusterStackName}-ClusterSecurityGroupId"}
+          }
+        }
+      }
+    },
+    "AppListener443": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Certificates": [
+          {
+            "CertificateArn": {"Fn::FindInMap": ["SSLCertificateMap", {"Ref": "SSLCertificateName"}, "Id"]}
+          }
+        ],
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {"Ref": "AppTargetGroup"},
+            "Type": "forward"
+          }
+        ],
+        "LoadBalancerArn": {"Fn::GetAtt": ["AppLoadBalancerStack", "Outputs.LoadBalancer"]},
+        "Port": "443",
+        "Protocol": "HTTPS"
+      }
+    },
+    "AppListener80": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {"Ref": "AppTargetGroup"},
+            "Type": "forward"
+          }
+        ],
+        "LoadBalancerArn": {"Fn::GetAtt": ["AppLoadBalancerStack", "Outputs.LoadBalancer"]},
+        "Port": "80",
+        "Protocol": "HTTP"
+      }
+    },
+    "AppService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": [
+        "AppListener443",
+        "AppListener80"
+      ],
+      "Properties": {
+        "Role": "ecsServiceRole",
+        "TaskDefinition": {"Ref": "AppTaskDefinition"},
+        "DesiredCount": {"Ref": "MinNumUIWebTasks"},
+        "LoadBalancers": [
+          {
+            "TargetGroupArn": {"Ref": "AppTargetGroup"},
+            "ContainerPort": "80",
+            "ContainerName": "App"
+          }
+        ],
+        "Cluster": {
+          "Fn::ImportValue": {"Fn::Sub": "${ClusterStackName}-ClusterName"}
+        }
+      }
+    },
+    "AppTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": "30",
+        "HealthCheckProtocol": "HTTP",
+        "HealthyThresholdCount": "2",
+        "UnhealthyThresholdCount": "3",
+        "HealthCheckTimeoutSeconds": "5",
+        "Port": "80",
+        "Protocol": "HTTP",
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "120"
+          }
+        ],
+        "VpcId": "vpc-9c9714f9",
+        "Name": {"Fn::Sub": "${AWS::StackName}-${AppLoadBalancerStack.Outputs.LoadBalancerEndingId}"}
+      }
+    },
+    "AppTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": {"Fn::Sub": "${AWS::StackName}-App"},
+        "ContainerDefinitions": [
+          {
+            "Name": "App",
+            "Image": {"Ref": "UIDockerImage"},
+            "Cpu": "512",
+            "PortMappings": [
+              {
+                "ContainerPort": "80"
+              }
+            ],
+            "Memory": "900",
+            "Essential": "true",
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "us-east-1",
+                "awslogs-group": {"Ref": "CloudWatchLogGroup"},
+                "awslogs-stream-prefix": "learner-logs"
+              }
+            },
+            "Environment": [
+              {
+                "Name": "SITE_SESSION_SECRET",
+                "Value": {"Ref": "UISessionSecret"}
+              },
+              {
+                "Name": "SITE_PORT",
+                "Value": "80"
+              },
+              {
+                "Name": "SITE_ROOT_URL",
+                "Value": {"Fn::Join": ["", ["https://", {"Ref": "DomainName"}, "/"]]}
+              },
+              {
+                "Name": "PORTAL_AUTH_CLIENT_ID",
+                "Value": {"Ref": "LearnPortalClientId"}
+              },
+              {
+                "Name": "PORTAL_AUTH_CLIENT_SECRET",
+                "Value": {"Ref": "LearnPortalSecret"}
+              },
+              {
+                "Name": "AWS_ACCESS_KEY_ID",
+                "Value": {"Ref": "AWSAccessKeyId"}
+              },
+              {
+                "Name": "PORTAL_ROOT_URL",
+                "Value": "https://learn.concord.org/"
+              },
+              {
+                "Name": "AWS_SECRET_ACCESS_KEY",
+                "Value": {"Ref": "AWSSecretAccessKey"}
+              },
+              {
+                "Name": "AWS_DEFAULT_REGION",
+                "Value": "us-east-1"
+              },
+              {
+                "Name": "ATHENA_OUTPUT_BUCKET",
+                "Value": "aws-athena-query-results-612297603577-us-east-1"
+              },
+              {
+                "Name": "ATHENA_OUTPUT_FOLDER",
+                "Value": "aws-learner-logs"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "LogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {"Ref": "CloudWatchLogGroup"}
+      }
+    },
+    "AppScalingStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": "https://s3.amazonaws.com/concord-devops/cloud-formation/task-autoscale-2-step-up.yml",
+        "Parameters": {
+          "ServiceName":  {"Fn::GetAtt": ["AppService", "Name"]},
+          "ClusterName": {
+            "Fn::ImportValue": {"Fn::Sub": "${ClusterStackName}-ClusterName"}
+          },
+          "MaxNumTasks": {"Ref": "MaxNumUIWebTasks"},
+          "MinNumTasks": {"Ref": "MinNumUIWebTasks"},
+          "ScaleUpCooldown": "0",
+          "ScaleUpStepBoundary": "25",
+          "ScaleUpStepAdjustment1": "100",
+          "ScaleUpStepAdjustment2": "200",
+          "ScaleUpAlarmThreshold": "75",
+          "ScaleUpAlarmEvaluationPeriods": "2",
+          "ScaleUpAlarmPeriod": "60",
+          "ScaleDownCooldown": "300",
+          "ScaleDownStepAdjustment": "-1",
+          "ScaleDownAlarmThreshold": "35",
+          "ScaleDownAlarmEvaluationPeriods": "5",
+          "ScaleDownAlarmPeriod": "60"
+        }
+      }
+    }
+  },
+  "Mappings": {
+    "SSLCertificateMap": {
+      "star.concord.org": {
+        "Id": "arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018"
+      },
+      "star.staging.concord.org": {
+        "Id": "arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560"
+      }
+    }
+  },
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "App Config"
+          },
+          "Parameters": [
+            "UIDockerImage",
+            "UISessionSecret",
+            "AWSAccessKeyId",
+            "AWSSecretAccessKey"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Portals"
+          },
+          "Parameters": [
+            "LearnPortalClientId",
+            "LearnPortalSecret"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Infrastructure"
+          },
+          "Parameters": [
+            "ClusterStackName",
+            "CloudWatchLogGroup",
+            "DomainName",
+            "Environment",
+            "MaxNumUIWebTasks",
+            "MinNumUIWebTasks",
+            "SSLCertificateName"
+          ]
+        }
+      ]
+    }
+  }
+}
