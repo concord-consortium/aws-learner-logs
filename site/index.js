@@ -11,6 +11,8 @@ const session = require('express-session');
 const request = require('request');
 const moment = require('moment-timezone');
 
+const createPartitionForCurrentHour = require('./create-partition-for-current-hour');
+
 app.set('view engine', 'pug');
 
 app.use(express.static('public'));
@@ -206,7 +208,7 @@ app.post('/api/query', (req, res) => {
       return res.error(400, 'Invalid query, no valid filters found!');
     }
 
-    const sql = `SELECT * FROM "log_manager_data"."${table}" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
+    const sql = `SELECT * FROM "${process.env.GLUE_DATABASE}"."${table}" WHERE ${where.map((clause) => `(${clause})`).join(' AND ')}`;
     //return res.json({sql});
 
     const athena = new AWS.Athena(awsConfig);
@@ -217,7 +219,7 @@ app.post('/api/query', (req, res) => {
       },
       ClientRequestToken: uuid.v4(),
       QueryExecutionContext: {
-        Database: 'log_manager_data'
+        Database: process.env.GLUE_DATABASE
       }
     };
     athena.startQueryExecution(queryParams, (err, data) => {
@@ -277,6 +279,10 @@ app.get('/api/downloadCSV', (req, res) => {
   const s3 = new AWS.S3(awsConfig);
   s3.getObject(params).createReadStream().pipe(res);
 });
+
+// once per minute check to see if we need to create a parition for the hour
+createPartitionForCurrentHour();
+setInterval(createPartitionForCurrentHour, 1000*60);
 
 const port = process.env.SITE_PORT || 5000;
 app.listen(port, () => console.log(`Listening on port ${port}`));

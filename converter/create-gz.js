@@ -16,7 +16,7 @@ const uploadStream = (s3Path) => {
   return {
     writeStream: pass,
     promise: s3.upload({
-      Bucket: 'log-manager-data',
+      Bucket: process.env.S3_BUCKET,
       Key: s3Path,
       Body: pass,
       ContentType: 'application/json',

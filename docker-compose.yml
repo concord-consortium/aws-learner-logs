@@ -16,6 +16,9 @@ services:
       AWS_SECRET_ACCESS_KEY:
       AWS_DEFAULT_REGION: us-east-1
 
+      S3_BUCKET:
+      GLUE_DATABASE:
+
       PORTAL_ROOT_URL: https://learn.concord.org/
       PORTAL_AUTH_CLIENT_ID: aws-learner-logs
       PORTAL_AUTH_CLIENT_SECRET:
