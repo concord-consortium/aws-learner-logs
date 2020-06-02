@@ -264,7 +264,7 @@
         "Id": "arn:aws:iam::612297603577:server-certificate/cloudfront/E3JZ7YRBPKHWAC/cc.wildcard.until.2018"
       },
       "star.staging.concord.org": {
-        "Id": "arn:aws:acm:us-east-1:612297603577:certificate/8297f3b1-eb86-4f91-8035-3fbd2c9f5560"
+        "Id": "arn:aws:acm:us-east-1:612297603577:certificate/9c26b1e0-4ba7-4016-babc-34b3e13e8c21"
       }
     }
   },
